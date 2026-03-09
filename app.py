@@ -1,4 +1,4 @@
- import streamlit as st
+import streamlit as st
 import json
 
 # Load the database
@@ -97,3 +97,4 @@ if st.session_state.analysis_active and st.session_state.lab_results:
                     st.error(f"**{auth}**: Non-Compliant ❌")
                     st.warning(f"**Risk:** {std['consequence']}")
                     st.info(f"**Treatment:** {std['solution']}")
+
