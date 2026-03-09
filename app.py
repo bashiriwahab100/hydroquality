@@ -131,3 +131,4 @@ else:
     st.info("The batch is currently empty. Use the sidebar to add laboratory results.")
 
 
+
