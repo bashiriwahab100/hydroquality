@@ -1,6 +1,20 @@
 import streamlit as st
 import json
 
+# ... (keep your existing load_data function)
+
+st.set_page_config(page_title="Water Quality Pro", layout="wide")
+
+# This CSS targets the header (GitHub/Deploy menu) and the footer (Streamlit branding)
+hide_st_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            header {visibility: hidden;}
+            footer {visibility: hidden;}
+            </style>
+            """
+st.markdown(hide_st_style, unsafe_allow_html=True)
+
 # Load the database
 def load_data():
     with open('database.json', 'r') as f:
@@ -97,4 +111,5 @@ if st.session_state.analysis_active and st.session_state.lab_results:
                     st.error(f"**{auth}**: Non-Compliant ❌")
                     st.warning(f"**Risk:** {std['consequence']}")
                     st.info(f"**Treatment:** {std['solution']}")
+
 
