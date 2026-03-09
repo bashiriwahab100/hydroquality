@@ -8,7 +8,20 @@ import pandas as pd
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 json_path = os.path.join(BASE_DIR, 'database.json')
 
+# This MUST be the first Streamlit command
+st.set_page_config(page_title="AquaCheck", page_icon="💧")
+
+# --- CSS to hide GitHub icon and Streamlit footer ---
+hide_st_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            </style>
+            """
+st.markdown(hide_st_style, unsafe_allow_html=True)
 @st.cache_data
+
 def load_database():
     try:
         with open(json_path, 'r') as f:
@@ -88,3 +101,4 @@ if st.session_state.batch:
                 st.success(f"**Required Solution:** {row['Action']}")
 else:
     st.info("The batch is currently empty. Use the sidebar to add laboratory results.")
+
