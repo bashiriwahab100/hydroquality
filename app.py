@@ -28,26 +28,6 @@ hide_github_only = """
 st.markdown(hide_github_only, unsafe_allow_html=True)
 
 # 2. Your existing logic follows
-st.title("Water Quality Assessment Portal")# 1. Page Config
-st.set_page_config(page_title="AquaCheck Portal", page_icon="💧", layout="centered")
-
-# --- CSS to hide ONLY the GitHub icon and the footer ---
-hide_github_only = """
-            <style>
-            /* Hides the GitHub 'View Source' button in the header */
-            header .stAppToolbar > div:first-child {
-                display: none;
-            }
-            
-            /* Hides the 'Made with Streamlit' footer */
-            footer {
-                visibility: hidden;
-            }
-            </style>
-            """
-st.markdown(hide_github_only, unsafe_allow_html=True)
-
-# 2. Your existing logic follows
 st.title("Water Quality Assessment Portal")
 
 def load_database():
@@ -129,6 +109,7 @@ if st.session_state.batch:
                 st.success(f"**Required Solution:** {row['Action']}")
 else:
     st.info("The batch is currently empty. Use the sidebar to add laboratory results.")
+
 
 
 
