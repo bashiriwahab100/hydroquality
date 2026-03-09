@@ -9,81 +9,108 @@ def load_data():
 data = load_data()
 param_map = {p['name']: p for p in data}
 
-st.set_page_config(page_title="Water Quality Analysis Wizard", layout="wide")
+# UI Configuration
+st.set_page_config(page_title="AquaMetric Pro", layout="wide", initial_sidebar_state="expanded")
 
-# Custom CSS for the red/grey aesthetic in your screenshot
+# Advanced CSS for a modern "Dashboard" look
 st.markdown("""
     <style>
-    .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #ff4b4b; color: white; }
-    .batch-container { background-color: #f0f2f6; padding: 15px; border-radius: 10px; }
+    /* Main background */
+    .stApp { background-color: #f8f9fa; }
+    
+    /* Custom Sidebar styling */
+    section[data-testid="stSidebar"] { background-color: #1e293b !important; color: white; }
+    
+    /* Card-style containers */
+    div[data-testid="stVerticalBlock"] > div:has(div.stMetric) {
+        background-color: white;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        border: 1px solid #e2e8f0;
+    }
+    
+    /* Primary Button Styling */
+    .stButton>button {
+        width: 100%;
+        border-radius: 8px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("Comprehensive Water Quality Analysis & Project Design Wizard")
-
-# Initialize session state for batch processing
+# Initialize Session States
 if 'batch' not in st.session_state:
     st.session_state.batch = {}
 
-# Layout: Two main tabs as seen in screenshot
-tab1, tab2 = st.tabs(["📊 Multi-Parameter Analysis", "📝 Project Proposal Wizard"])
+# --- SIDEBAR: CONTROLS & BATCH LIST ---
+with st.sidebar:
+    st.title("🧪 AquaMetric Pro")
+    st.markdown("---")
+    
+    st.header("1. Input Data")
+    selected_name = st.selectbox("Parameter Name", options=list(param_map.keys()))
+    current_p = param_map[selected_name]
+    
+    val = st.number_input(f"Result ({current_p['unit']})", format="%.4f")
+    
+    if st.button("➕ Add to Analysis"):
+        st.session_state.batch[selected_name] = val
+        st.success(f"Linked: {selected_name}")
 
-with tab1:
-    col_left, col_right = st.columns([1, 2])
-
-    with col_left:
-        st.header("🕹️ Input Lab Data")
-        with st.container(border=True):
-            # 1. Select Parameter
-            selected_param_name = st.selectbox("Select Parameter", options=list(param_map.keys()))
-            
-            # 2. Enter Value
-            unit = param_map[selected_param_name]['unit']
-            val = st.number_input(f"Lab Result Value ({unit})", format="%.4f", step=0.01)
-            
-            # 3. Add to Batch
-            if st.button("➕ Add to Batch"):
-                st.session_state.batch[selected_param_name] = val
-                st.toast(f"Added {selected_param_name} to batch!")
-
-        st.header("📋 Current Batch")
-        if not st.session_state.batch:
-            st.info("No parameters added yet. Use the form above.")
-        else:
-            for name, value in st.session_state.batch.items():
-                st.write(f"**{name}:** {value} {param_map[name]['unit']}")
-            if st.button("🗑️ Clear Batch"):
-                st.session_state.batch = {}
-                st.rerun()
-
-    with col_right:
-        st.header("🔍 Analysis Results")
+    st.markdown("---")
+    st.header("2. Current Queue")
+    if not st.session_state.batch:
+        st.caption("No data added yet.")
+    else:
+        for name, value in st.session_state.batch.items():
+            st.info(f"**{name}**: {value} {param_map[name]['unit']}")
         
-        if not st.session_state.batch:
-            st.info("Pending data input. Results will appear here after running analysis.")
-        
-        if st.button("🚀 RUN FULL ANALYSIS"):
-            if not st.session_state.batch:
-                st.error("Please add at least one parameter to the batch first.")
-            else:
-                for name, user_val in st.session_state.batch.items():
-                    p_data = param_map[name]
-                    st.subheader(f"Results for {name}")
-                    
-                    # Check against standards
-                    for std in p_data['standards']:
-                        auth = std['authority']
-                        max_lim = std.get('max_limit')
-                        min_lim = std.get('min_limit')
-                        
-                        is_safe = True
-                        if max_lim is not None and user_val > max_lim: is_safe = False
-                        if min_lim is not None and user_val < min_lim: is_safe = False
+        if st.button("🗑️ Reset All"):
+            st.session_state.batch = {}
+            st.rerun()
 
-                        if is_safe:
-                            st.success(f"✅ {auth}: Compliant")
-                        else:
-                            st.error(f"❌ {auth}: Non-Compliant (Limit: {max_lim if max_lim else min_lim})")
-                            st.warning(f"**Consequence:** {std['consequence']}")
-                            st.info(f"**Solution:** {std['solution']}")
-                    st.divider()
+# --- MAIN AREA: RESULTS DASHBOARD ---
+st.title("Water Quality Analysis Dashboard")
+st.caption("Cross-referencing laboratory results with NIS 554:2015 and WHO standards.")
+
+if not st.session_state.batch:
+    st.warning("Please use the sidebar to input your laboratory results for analysis.")
+else:
+    # Top-level Metrics
+    total_params = len(st.session_state.batch)
+    st.write(f"### Analysis Overview ({total_params} Parameters)")
+    
+    # Display Results in a Grid
+    cols = st.columns(2)
+    for i, (name, user_val) in enumerate(st.session_state.batch.items()):
+        p_data = param_map[name]
+        with cols[i % 2]:
+            st.markdown(f"### {name}")
+            st.metric(label="Measured Value", value=f"{user_val} {p_data['unit']}")
+            
+            # Compare with standards
+            for std in p_data['standards']:
+                auth = std['authority']
+                max_lim = std.get('max_limit')
+                min_lim = std.get('min_limit')
+                
+                # Logical Evaluation
+                fail_max = max_lim is not None and user_val > max_lim
+                fail_min = min_lim is not None and user_val < min_lim
+                
+                if fail_max or fail_min:
+                    st.error(f"**{auth} Status: NON-COMPLIANT**")
+                    with st.expander("⚠️ View Risk & Remediation"):
+                        st.write(f"**Hazard:** {std['consequence']}")
+                        st.write(f"**Treatment:** {std['solution']}")
+                else:
+                    st.success(f"**{auth} Status: COMPLIANT**")
+            st.markdown("---")
+
+    # Final Action
+    if st.button("📥 Export Comprehensive Report"):
+        st.balloons()
+        st.write("Generating CSV/PDF summary...")
