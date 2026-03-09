@@ -1,58 +1,90 @@
+import streamlit as st
 import json
+import os
 import pandas as pd
 
-# 1. Load your provided database.json
-with open('database.json', 'r') as f:
-    water_db = json.load(f)
+# 1. Robust File Loading
+# This ensures the script finds database.json regardless of where it's hosted
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+json_path = os.path.join(BASE_DIR, 'database.json')
 
-def run_water_analysis(lab_results):
-    """
-    lab_results: list of dicts, e.g., [{"name": "pH Level", "value": 9.0}]
-    """
-    analysis_report = []
+@st.cache_data
+def load_database():
+    try:
+        with open(json_path, 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        st.error("Error: 'database.json' not found in the root directory.")
+        return []
 
-    for result in lab_results:
-        # Find the parameter in our database
-        param_info = next((item for item in water_db if item["name"] == result["name"]), None)
-        
-        if not param_info:
-            continue
-        
-        param_status = {
-            "Parameter": result["name"],
-            "Measured Value": result["value"],
-            "Unit": param_info["unit"],
-            "NIS Status": "✅ PASS",
-            "WHO Status": "✅ PASS",
-            "Consequences": [],
-            "Solutions": []
+water_db = load_database()
+
+# 2. Initialize Session State (Prevents Blank Screen on Refresh)
+if 'batch' not in st.session_state:
+    st.session_state.batch = []
+
+def run_analysis(lab_results):
+    report = []
+    for entry in lab_results:
+        # Match parameter name from your JSON
+        db_item = next((item for item in water_db if item["name"] == entry["name"]), None)
+        if not db_item: continue
+
+        status = {
+            "Parameter": entry["name"],
+            "Value": entry["value"],
+            "Unit": db_item["unit"],
+            "NIS (NAFDAC)": "✅ PASS",
+            "WHO": "✅ PASS",
+            "Notes": "",
+            "Action": ""
         }
 
-        # Check against each standard (NIS and WHO)
-        for std in param_info["standards"]:
-            authority = "NIS" if "NIS" in std["authority"] else "WHO"
-            
-            # Check Max Limit
-            is_above_max = std.get("max_limit") is not None and result["value"] > std["max_limit"]
-            # Check Min Limit (mostly for pH)
-            is_below_min = std.get("min_limit") is not None and result["value"] < std["min_limit"]
+        # Check against NIS and WHO standards
+        for std in db_item["standards"]:
+            limit_fail = False
+            if std.get("max_limit") and entry["value"] > std["max_limit"]:
+                limit_fail = True
+            if std.get("min_limit") and entry["value"] < std["min_limit"]:
+                limit_fail = True
 
-            if is_above_max or is_below_min:
-                param_status[f"{authority} Status"] = "❌ FAIL"
-                param_status["Consequences"].append(f"({authority}): {std['consequence']}")
-                param_status["Solutions"].append(f"({authority}): {std['solution']}")
+            if limit_fail:
+                auth_key = "NIS (NAFDAC)" if "NIS" in std["authority"] else "WHO"
+                status[auth_key] = "❌ FAIL"
+                status["Notes"] = std["consequence"]
+                status["Action"] = std["solution"]
+        
+        report.append(status)
+    return pd.DataFrame(report)
 
-        analysis_report.append(param_status)
+# --- UI LAYOUT ---
+st.title("💧 AquaCheck Assessment Portal")
+
+# Sidebar for Input
+with st.sidebar:
+    st.header("Input Data")
+    # Get names directly from your JSON database
+    param_names = [item["name"] for item in water_db]
+    selected_name = st.selectbox("Select Parameter", param_names)
+    val = st.number_input("Laboratory Value", format="%.4f")
     
-    return pd.DataFrame(analysis_report)
+    if st.button("Add to Batch"):
+        st.session_state.batch.append({"name": selected_name, "value": val})
+        st.toast(f"Added {selected_name}")
 
-# --- EXAMPLE USAGE ---
-# Let's say these are the values entered in your portal
-my_lab_batch = [
-    {"name": "pH Level", "value": 9.2},       # Should fail (Limit 8.5)
-    {"name": "Turbidity", "value": 2.5},     # Fails WHO (Limit 1.0), Passes NIS (Limit 5.0)
-    {"name": "Lead (Pb)", "value": 0.005}    # Should pass both (Limit 0.01)
-]
+# Main Display Area
+if st.session_state.batch:
+    st.subheader("Current Batch Results")
+    results_df = run_analysis(st.session_state.batch)
+    
+    # Highlight failures visually
+    st.dataframe(results_df.style.apply(lambda x: ['background-color: #ffcccc' if v == "❌ FAIL" else '' for v in x], axis=1))
 
-df_results = run_water_analysis(my_lab_batch)
-print(df_results[['Parameter', 'Measured Value', 'NIS Status', 'WHO Status']])
+    # Detailed Solutions for Failures
+    for _, row in results_df.iterrows():
+        if "❌ FAIL" in [row["NIS (NAFDAC)"], row["WHO"]]:
+            with st.expander(f"⚠️ Remediation for {row['Parameter']}"):
+                st.warning(f"**Consequence:** {row['Notes']}")
+                st.success(f"**Required Solution:** {row['Action']}")
+else:
+    st.info("The batch is currently empty. Use the sidebar to add laboratory results.")
