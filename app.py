@@ -7,76 +7,83 @@ def load_data():
         return json.load(f)
 
 data = load_data()
+param_map = {p['name']: p for p in data}
 
-st.set_page_config(page_title="Water Quality Analyzer", layout="wide")
+st.set_page_config(page_title="Water Quality Analysis Wizard", layout="wide")
 
-st.title("💧 Water Chemical Analysis Tool")
-st.markdown("Compare your water test results against **NIS 554:2015** and **WHO** standards.")
+# Custom CSS for the red/grey aesthetic in your screenshot
+st.markdown("""
+    <style>
+    .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #ff4b4b; color: white; }
+    .batch-container { background-color: #f0f2f6; padding: 15px; border-radius: 10px; }
+    </style>
+    """, unsafe_allow_html=True)
 
-# Sidebar for inputs
-st.sidebar.header("Input Test Results")
-user_inputs = {}
+st.title("Comprehensive Water Quality Analysis & Project Design Wizard")
 
-for param in data:
-    # Use a default value of 0.0 or the min_limit if available
-    default_val = param['standards'][0].get('min_limit', 0.0) if 'min_limit' in param['standards'][0] else 0.0
-    user_inputs[param['id']] = st.sidebar.number_input(
-        f"{param['name']} ({param['unit']})", 
-        value=float(default_val),
-        step=0.01 if param['unit'] == 'mg/L' else 1.0,
-        format="%.3f" if param['unit'] == 'mg/L' else None
-    )
+# Initialize session state for batch processing
+if 'batch' not in st.session_state:
+    st.session_state.batch = {}
 
-# Analysis Logic
-st.header("Analysis Report")
+# Layout: Two main tabs as seen in screenshot
+tab1, tab2 = st.tabs(["📊 Multi-Parameter Analysis", "📝 Project Proposal Wizard"])
 
-cols = st.columns(2)
-col_idx = 0
+with tab1:
+    col_left, col_right = st.columns([1, 2])
 
-for param in data:
-    with cols[col_idx % 2]:
-        val = user_inputs[param['id']]
-        st.subheader(f"{param['name']}")
-        
-        # Display current value
-        st.metric(label="Detected Level", value=f"{val} {param['unit']}")
-        
-        # Compare against each authority in the JSON
-        for std in param['standards']:
-            auth = std['authority']
-            max_lim = std.get('max_limit')
-            min_lim = std.get('min_limit')
+    with col_left:
+        st.header("🕹️ Input Lab Data")
+        with st.container(border=True):
+            # 1. Select Parameter
+            selected_param_name = st.selectbox("Select Parameter", options=list(param_map.keys()))
             
-            is_safe = True
-            issue_msg = ""
+            # 2. Enter Value
+            unit = param_map[selected_param_name]['unit']
+            val = st.number_input(f"Lab Result Value ({unit})", format="%.4f", step=0.01)
+            
+            # 3. Add to Batch
+            if st.button("➕ Add to Batch"):
+                st.session_state.batch[selected_param_name] = val
+                st.toast(f"Added {selected_param_name} to batch!")
 
-            # Check logic
-            if max_lim is not None and val > max_lim:
-                is_safe = False
-                issue_msg = f"Exceeds {auth} limit of {max_lim}."
-            if min_lim is not None and val < min_lim:
-                is_safe = False
-                issue_msg = f"Below {auth} limit of {min_lim}."
+        st.header("📋 Current Batch")
+        if not st.session_state.batch:
+            st.info("No parameters added yet. Use the form above.")
+        else:
+            for name, value in st.session_state.batch.items():
+                st.write(f"**{name}:** {value} {param_map[name]['unit']}")
+            if st.button("🗑️ Clear Batch"):
+                st.session_state.batch = {}
+                st.rerun()
 
-            if not is_safe:
-                st.error(f"**{auth} Alert:** {issue_msg}")
-                st.warning(f"**Consequence:** {std['consequence']}")
-                st.info(f"**Recommended Solution:** {std['solution']}")
-            else:
-                st.success(f"✅ Compliant with {auth}")
+    with col_right:
+        st.header("🔍 Analysis Results")
         
-        st.divider()
-    col_idx += 1
+        if not st.session_state.batch:
+            st.info("Pending data input. Results will appear here after running analysis.")
+        
+        if st.button("🚀 RUN FULL ANALYSIS"):
+            if not st.session_state.batch:
+                st.error("Please add at least one parameter to the batch first.")
+            else:
+                for name, user_val in st.session_state.batch.items():
+                    p_data = param_map[name]
+                    st.subheader(f"Results for {name}")
+                    
+                    # Check against standards
+                    for std in p_data['standards']:
+                        auth = std['authority']
+                        max_lim = std.get('max_limit')
+                        min_lim = std.get('min_limit')
+                        
+                        is_safe = True
+                        if max_lim is not None and user_val > max_lim: is_safe = False
+                        if min_lim is not None and user_val < min_lim: is_safe = False
 
-# Summary Table
-st.header("📋 Data Summary")
-summary_data = []
-for param in data:
-    summary_data.append({
-        "Parameter": param['name'],
-        "Result": f"{user_inputs[param['id']]} {param['unit']}",
-        "NIS Limit": next((f"{s.get('max_limit')}" for s in param['standards'] if s['authority'] == "NIS 554:2015"), "N/A"),
-        "WHO Limit": next((f"{s.get('max_limit')}" for s in param['standards'] if s['authority'] == "WHO Guidelines"), "N/A")
-    })
-
-st.table(summary_data)
+                        if is_safe:
+                            st.success(f"✅ {auth}: Compliant")
+                        else:
+                            st.error(f"❌ {auth}: Non-Compliant (Limit: {max_lim if max_lim else min_lim})")
+                            st.warning(f"**Consequence:** {std['consequence']}")
+                            st.info(f"**Solution:** {std['solution']}")
+                    st.divider()
