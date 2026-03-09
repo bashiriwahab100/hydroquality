@@ -3,6 +3,34 @@ import json
 import os
 import pandas as pd
 
+# Set page config first
+st.set_page_config(page_title="AquaCheck Portal", page_icon="💧")
+
+# --- CSS to hide ONLY the GitHub icon and the Fork link ---
+hide_github_fork = """
+    <style>
+    /* Hides the GitHub icon */
+    .stAppToolbar div:has(a[href*="github.com"]) {
+        display: none !important;
+    }
+    
+    /* Hides the 'Fork' button/text */
+    .stAppToolbar button:has(div:contains("Fork")), 
+    .stAppToolbar div:contains("Fork") {
+        display: none !important;
+    }
+
+    /* Hides the 'Made with Streamlit' footer for a cleaner look */
+    footer {
+        visibility: hidden;
+    }
+    </style>
+"""
+st.markdown(hide_github_fork, unsafe_allow_html=True)
+
+# Rest of your app code...
+st.title("💧 AquaCheck Assessment Portal")
+
 # 1. Robust File Loading
 # This ensures the script finds database.json regardless of where it's hosted
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -88,3 +116,4 @@ if st.session_state.batch:
                 st.success(f"**Required Solution:** {row['Action']}")
 else:
     st.info("The batch is currently empty. Use the sidebar to add laboratory results.")
+
